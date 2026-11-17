@@ -19,15 +19,36 @@ STATUSES = ["草稿", "策略验证中", "已启用", "已停用"]
 @router.get("", response_model=PageResult[dict])
 def list_entries(
     keyword: str | None = Query(default=None, description="按策略编号检索"),
+    domain: str | None = Query(default=None, description="按目标域名检索，规范化后匹配"),
     status: str | None = Query(default=None, description="草稿、策略验证中、已启用、已停用"),
     page: int = 1,
     size: int = 20,
 ) -> PageResult[dict]:
-    """按策略编号与状态过滤请求分配列表；没有数据时返回空页，不报错。"""
+    """按策略编号、目标域名与状态过滤请求分配列表；没有数据时返回空页，不报错。"""
     if size > 200:
         raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
-    items, total = service.list_entries(keyword=keyword, status=status, page=page, size=size)
+    items, total = service.list_entries(keyword=keyword, domain=domain, status=status, page=page, size=size)
     return PageResult(items=items, total=total, page=page, size=size)
+
+
+@router.get("/results", response_model=PageResult[dict])
+def list_results(
+    domain: str | None = Query(default=None, description="按规范化目标域名过滤"),
+    page: int = 1,
+    size: int = 200,
+) -> PageResult[dict]:
+    """唯一请求分配结果数据集：保留来源策略与处理结果，所用策略版本可追溯。"""
+    if size > 200:
+        raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
+    items, total = service.list_results(domain=domain, page=page, size=size)
+    return PageResult(items=items, total=total, page=page, size=size)
+
+
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出请求分配清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "dispatch", "total": total, "items": items}
 
 
 @router.get("/{entry_id}", response_model=dict)
@@ -56,10 +77,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出请求分配清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "dispatch", "total": total, "items": items}

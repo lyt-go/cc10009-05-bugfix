@@ -21,6 +21,10 @@ class Store:
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
 
+    def peek(self, module: str) -> list[dict[str, Any]]:
+        """只读查看某张表，不因为查询而创建空表。"""
+        return self._tables.get(module, [])
+
     def find(self, module: str, entry_id: int) -> dict[str, Any] | None:
         for row in self.rows(module):
             if int(row.get("id", 0)) == entry_id:
@@ -30,6 +34,9 @@ class Store:
     def overview(self) -> dict[str, object]:
         modules: list[dict[str, object]] = []
         for name in self.module_names():
+            if name not in SEED_ROWS:
+                # 运行期派生的结果数据集不算业务模块，不进看板。
+                continue
             rows = self.rows(name)
             modules.append({
                 "name": name,
